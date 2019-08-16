@@ -243,7 +243,7 @@ class Rerun_Failed_Jobs():
                     subcomponent = subcomponent + "," + job["subcomponent"]
                     i = i + 1
 
-            #sleeptime = (i*40)+60
+            sleeptime = (i*40)+60
 
             poolId = next(item for item in components if item["name"] == component)["poolId"]
             addPoolId = next(item for item in components if item["name"] == component)["addPoolId"]
@@ -273,6 +273,8 @@ class Rerun_Failed_Jobs():
                             if job["component"] == component:
                                 self.save_rerun_job_history(job)
                         self.rerun_jobs_queue[:] = [job for job in self.rerun_jobs_queue if job.get('component') != component]
+            print "sleeping for {0} before triggering again".format(sleeptime)
+            time.sleep(sleeptime)
 
 
     def run_query(self, query, bucket=None):
@@ -312,10 +314,13 @@ class Rerun_Failed_Jobs():
     def find_and_manage_rerun_jobs(self):
         jobs_to_rerun = self.find_jobs_to_rerun()
         self.manage_rerun_jobs_queue(jobs_to_rerun)
-        time.sleep(10)
+        print "sleeping for 1200 secs before triggering again"
+        time.sleep(1200)
         while run_infinite == "True" or self.rerun_jobs_queue:
             jobs_to_rerun = self.find_jobs_to_rerun()
             self.manage_rerun_jobs_queue(jobs_to_rerun)
+            print "sleeping for 1200 secs before triggering again"
+            time.sleep(1200)
 
         print "stopping monitoring"
 
