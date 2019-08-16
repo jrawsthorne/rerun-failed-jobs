@@ -313,12 +313,11 @@ class Rerun_Failed_Jobs():
         jobs_to_rerun = self.find_jobs_to_rerun()
         self.manage_rerun_jobs_queue(jobs_to_rerun)
         time.sleep(10)
-        if run_infinite == "False" and not self.rerun_jobs_queue:
-            print "stopping monitoring"
-            return
-        else:
-            self.find_and_manage_rerun_jobs()
+        while run_infinite == "True" or self.rerun_jobs_queue:
+            jobs_to_rerun = self.find_jobs_to_rerun()
+            self.manage_rerun_jobs_queue(jobs_to_rerun)
 
+        print "stopping monitoring"
 
 if __name__ == '__main__':
     # Spawn 2 never ending threads - 1 to populate the re-run queue, other to dispatch jobs whenever there are free machines
