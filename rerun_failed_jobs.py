@@ -253,15 +253,15 @@ class Rerun_Failed_Jobs():
             print ("Running query : %s" % query)
             availableVMs = self.run_query(query, self.cb)[0]
 
-            if availableVMs >= 0:
+            if availableVMs >= 10:
 
                 url = "http://qa.sc.couchbase.com/job/test_suite_dispatcher/buildWithParameters?" \
                       "token={0}&OS={1}&version_number={2}&suite={3}&component={4}&subcomponent={5}&serverPoolId={6}&branch={7}&addPoolId={8}". \
                     format("extended_sanity", "centos", current_build_num, "12hr_weekly", component, subcomponent, poolId,
                            "master", addPoolId)
                 print url
-                #response = requests.get(url, verify=True)
-                if not True:
+                response = requests.get(url, verify=True)
+                if not response.ok:
                     print "Error in triggering job"
                     print response
                 else:
