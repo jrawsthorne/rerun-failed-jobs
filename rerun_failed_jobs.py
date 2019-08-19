@@ -396,7 +396,7 @@ class RerunFailedJobs:
 
     def trigger_jobs_constantly(self):
         while run_infinite == "True" or self.rerun_jobs_queue:
-            time.sleep(10)
+            time.sleep(40)
             self.trigger_jobs()
 
         self.logger.info("stopping triggering jobs as job queue is empty")
