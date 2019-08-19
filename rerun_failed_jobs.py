@@ -311,10 +311,10 @@ class RerunFailedJobs:
             self.print_current_queue()
 
     def print_current_queue(self):
-        print "========================================"
+        self.logger.info("========================================")
         for job in self.rerun_jobs_queue:
-            print "||" + job["component"] + " " + job["subcomponent"] + "||"
-        print "========================================"
+            self.logger.info("||" + job["component"] + " " + job["subcomponent"] + "||")
+        self.logger.info("========================================")
 
     def get_available_serverpool_machines(self, poolId):
         query = "SELECT raw count(*) FROM `{0}` where state ='available' and os = 'centos' and \
@@ -346,7 +346,7 @@ class RerunFailedJobs:
 
         self.logger.info("current rerun_job_matrix")
         for comp in rerun_job_matrix:
-            print comp + " || " + str(rerun_job_matrix[comp])
+            self.logger.info(comp + " || " + str(rerun_job_matrix[comp]))
 
         return rerun_job_matrix
 
