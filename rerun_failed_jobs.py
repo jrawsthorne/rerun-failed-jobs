@@ -51,6 +51,18 @@ current_build_num = sys.argv[1]
 prev_stable_build_num = sys.argv[2]
 run_infinite = sys.argv[3]
 LOCKMODE_WAIT = 100
+logger = logging.getLogger("rerun_failed_jobs")
+logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+formatter = logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+timestamp = str(datetime.now().strftime('%Y%m%dT_%H%M%S'))
+fh = logging.FileHandler("./rerun_failed_jobs-{0}.log".format(timestamp))
+fh.setFormatter(formatter)
+logger.addHandler(fh)
 
 components = [{"name": "2i", "poolId": "regression", "addPoolId": "None"},
               {"name": "analytics", "poolId": "jre", "addPoolId": "None"},
@@ -74,7 +86,8 @@ components = [{"name": "2i", "poolId": "regression", "addPoolId": "None"},
               {"name": "epeng", "poolId": "regression", "addPoolId": "elastic-xdcr"},
             {"name": "cli_tools", "poolId": "regression", "addPoolId": "None"},
              {"name": "durability", "poolId": "regression", "addPoolId": "None"},
-             {"name": "transaction", "poolId": "regression", "addPoolId": "None"}]
+             {"name": "transaction", "poolId": "regression", "addPoolId": "None"},
+              {"name": "subdoc", "poolId": "regression", "addPoolId": "None"}]
 
 
 class GenericOps(object):
@@ -99,8 +112,8 @@ class GenericOps(object):
                     break
                 return result
             except HTTPError as e:
-                self.logger.info(str(e))
-                self.logger.info('Retrying query...')
+                logger.info(str(e))
+                logger.info('Retrying query...')
                 time.sleep(COOLDOWN)
                 CURR_RETRIES += 1
                 pass
@@ -174,19 +187,6 @@ class RerunFailedJobs:
 
     def __init__(self):
 
-        self.logger = logging.getLogger("rerun_failed_jobs")
-        self.logger.setLevel(logging.DEBUG)
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.DEBUG)
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        ch.setFormatter(formatter)
-        self.logger.addHandler(ch)
-        timestamp = str(datetime.now().strftime('%Y%m%dT_%H%M%S'))
-        fh = logging.FileHandler("./rerun_failed_jobs-{0}.log".format(timestamp))
-        fh.setFormatter(formatter)
-        self.logger.addHandler(fh)
-
         self.green_board_bucket = GreenBoardBucket()
         self.server_pool_cluster = ServerPoolCluster()
         self.green_board_history_bucket = GreenBoardHistoryBucket()
@@ -205,7 +205,7 @@ class RerunFailedJobs:
                 '%test_suite_executor-TAF/%' or url like '%test_suite_executor/%') \
                 and name not like 'centos-rqg%' order by name;".format(GREENBOARD_DB_BUCKETNAME, current_build_num)
 
-        self.logger.info("Running query : %s" % query)
+        logger.info("Running query : %s" % query)
         results = self.green_board_bucket.run_query(query)
         all_results.extend(results)
 
@@ -215,7 +215,7 @@ class RerunFailedJobs:
                 and lower(os)='centos' and result in ['UNSTABLE','ABORTED'] and failCount=totalCount\
                 and result='FAILURE' and ( url like '%test_suite_executor-jython/%' or url like '%test_suite_executor-TAF/%' or url like '%test_suite_executor/%') order by name;".format(
             GREENBOARD_DB_BUCKETNAME, current_build_num)
-        self.logger.info("Running query : %s" % query)
+        logger.info("Running query : %s" % query)
         results = self.green_board_bucket.run_query(query)
         all_results.extend(results)
 
@@ -230,7 +230,7 @@ class RerunFailedJobs:
                 and (s1.failCount - s2.failCount) > 0 order by s1.name".format(GREENBOARD_DB_BUCKETNAME,
                                                                                current_build_num, prev_stable_build_num)
 
-        self.logger.info("Running query : %s" % query)
+        logger.info("Running query : %s" % query)
         results = self.green_board_bucket.run_query(query)
         all_results.extend(results)
 
@@ -307,22 +307,22 @@ class RerunFailedJobs:
 
         with self._lock_queue:
             self.rerun_jobs_queue.extend(rerun_job_details)
-            self.logger.info("current rerun job queue")
+            logger.info("current rerun job queue")
             self.print_current_queue()
 
     def print_current_queue(self):
-        self.logger.info("========================================")
+        logger.info("========================================")
         for job in self.rerun_jobs_queue:
-            self.logger.info("||" + job["component"] + " " + job["subcomponent"] + "||")
-        self.logger.info("========================================")
+            logger.info("||" + job["component"] + " " + job["subcomponent"] + "||")
+        logger.info("========================================")
 
     def get_available_serverpool_machines(self, poolId):
         query = "SELECT raw count(*) FROM `{0}` where state ='available' and os = 'centos' and \
                 (poolId = '{1}' or '{1}' in poolId)".format(
             SERVER_POOL_DB_BUCKETNAME, poolId)
-        self.logger.info("Running query : %s" % query)
+        logger.info("Running query : %s" % query)
         available_vms = self.server_pool_cluster.run_query(query)[0]
-        self.logger.info("number of available machines : {0}".format(available_vms))
+        logger.info("number of available machines : {0}".format(available_vms))
         return available_vms
 
     def form_rerun_job_matrix(self):
@@ -344,9 +344,9 @@ class RerunFailedJobs:
             rerun_job_matrix[comp]["addPoolId"] = next(item for item in components if item["name"] == comp)["addPoolId"]
             rerun_job_matrix[comp]["count"] = count
 
-        self.logger.info("current rerun_job_matrix")
+        logger.info("current rerun_job_matrix")
         for comp in rerun_job_matrix:
-            self.logger.info(comp + " || " + str(rerun_job_matrix[comp]))
+            logger.info(comp + " || " + str(rerun_job_matrix[comp]))
 
         return rerun_job_matrix
 
@@ -360,14 +360,14 @@ class RerunFailedJobs:
         # wget "http://qa.sc.couchbase.com/job/test_suite_dispatcher/buildWithParameters?token=extended_sanity&OS=centos&version_number=$version_number&suite=12hour&component=subdoc,xdcr,rbac,query,nserv,2i,eventing,backup_recovery,sanity,ephemeral,epeng&url=$url&serverPoolId=regression&branch=$branch"
 
         # Segregate subcomponents by component in the queue
-        self.logger.info("current job queue")
+        logger.info("current job queue")
         self.print_current_queue()
         if self.rerun_jobs_queue:
             rerun_job_matrix = self.form_rerun_job_matrix()
             for comp in rerun_job_matrix:
                 sleep_time = 60
                 comp_rerun_details = rerun_job_matrix.get(comp)
-                self.logger.info("processing : {0} : {1}".format(comp, comp_rerun_details))
+                logger.info("processing : {0} : {1}".format(comp, comp_rerun_details))
                 pool_id = comp_rerun_details["poolId"]
                 available_vms = self.get_available_serverpool_machines(pool_id)
                 if available_vms >= MAX_AVAILABLE_VMS_TO_RERUN:
@@ -376,11 +376,11 @@ class RerunFailedJobs:
                           "token={0}&OS={1}&version_number={2}&suite={3}&component={4}&subcomponent={5}&serverPoolId={6}&branch={7}&addPoolId={8}". \
                         format("extended_sanity", "centos", current_build_num, "12hr_weekly", comp, comp_rerun_details["subcomponent"], comp_rerun_details["poolId"],
                                "master", comp_rerun_details["addPoolId"])
-                    self.logger.info("Triggering job with URL " + str(url))
+                    logger.info("Triggering job with URL " + str(url))
                     response = requests.get(url, verify=True)
                     if not response.ok:
-                        self.logger.error("Error in triggering job")
-                        self.logger.error(str(response))
+                        logger.error("Error in triggering job")
+                        logger.error(str(response))
                     else:
                         # Save history for these jobs
                         for job in self.rerun_jobs_queue:
@@ -391,7 +391,7 @@ class RerunFailedJobs:
                         with self._lock_queue:
                             self.rerun_jobs_queue[:] = [job for job in self.rerun_jobs_queue if job.get('component') != comp]
                         sleep_time = (comp_rerun_details["count"] * 40) + 60
-                    self.logger.info("sleeping for {0} before triggering again".format(sleep_time))
+                    logger.info("sleeping for {0} before triggering again".format(sleep_time))
                 time.sleep(sleep_time)
 
     def trigger_jobs_constantly(self):
@@ -399,7 +399,7 @@ class RerunFailedJobs:
             time.sleep(40)
             self.trigger_jobs()
 
-        self.logger.info("stopping triggering jobs as job queue is empty")
+        logger.info("stopping triggering jobs as job queue is empty")
 
     def find_and_manage_rerun_jobs(self):
         jobs_to_rerun = self.find_jobs_to_rerun()
@@ -407,10 +407,10 @@ class RerunFailedJobs:
         while run_infinite == "True" or self.rerun_jobs_queue:
             jobs_to_rerun = self.find_jobs_to_rerun()
             self.manage_rerun_jobs_queue(jobs_to_rerun)
-            self.logger.info("sleeping for 1200 secs before triggering again")
+            logger.info("sleeping for 1200 secs before triggering again")
             time.sleep(1200)
 
-        self.logger.info("stopping monitoring")
+        logger.info("stopping monitoring")
 
 
 if __name__ == '__main__':
