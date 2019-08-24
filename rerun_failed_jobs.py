@@ -87,6 +87,7 @@ components = [{"name": "2i", "poolId": "regression", "addPoolId": "None"},
             {"name": "cli_tools", "poolId": "regression", "addPoolId": "None"},
              {"name": "durability", "poolId": "regression", "addPoolId": "None"},
              {"name": "transaction", "poolId": "regression", "addPoolId": "None"},
+              {"name": "sanity", "poolId": "regression", "addPoolId": "None"},
               {"name": "subdoc", "poolId": "regression", "addPoolId": "None"}]
 
 
