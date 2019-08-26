@@ -214,7 +214,7 @@ class RerunFailedJobs:
         query = "select `build`,name,component,failCount,totalCount,build_id,url||tostring(build_id) as full_url, \
                 '0 tests passed' as reason from {0} where `build`='{1}'\
                 and lower(os)='centos' and result in ['UNSTABLE','ABORTED'] and failCount=totalCount\
-                and result='FAILURE' and ( url like '%test_suite_executor-jython/%' or url like '%test_suite_executor-TAF/%' or url like '%test_suite_executor/%') order by name;".format(
+                and name not like 'centos-rqg%' and ( url like '%test_suite_executor-jython/%' or url like '%test_suite_executor-TAF/%' or url like '%test_suite_executor/%') order by name;".format(
             GREENBOARD_DB_BUCKETNAME, current_build_num)
         logger.info("Running query : %s" % query)
         results = self.green_board_bucket.run_query(query)
