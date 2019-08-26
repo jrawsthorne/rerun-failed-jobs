@@ -225,7 +225,7 @@ class RerunFailedJobs:
         query = "select s1.`build`,s1.name, s1.component, s1.failCount, s1.totalCount, s1.build_id, s1.url || tostring(s1.build_id) \
                 as full_url, 'more failures than {2}' as reason from {0} s1 left outer join {0} s2 on s1.name = s2.name\
                 and s2. `build` = '{2}' \
-                and lower(s2.os) = 'centos' and s2.result = 'UNSTABLE' and ( s2.url like '%test_suite_executor-jython/%' or s2.url like '%test_suite_executor-TAF/%' or s2.url like '%test_suite_executor/%') \
+                and lower(s2.os) = 'centos' and ( s2.url like '%test_suite_executor-jython/%' or s2.url like '%test_suite_executor-TAF/%' or s2.url like '%test_suite_executor/%') \
                 and s2.name not like 'centos-rqg%' where s1.`build` = '{1}' and lower(s1.os) = 'centos' \
                 and s1.result = 'UNSTABLE' and ( s1.url like '%test_suite_executor-jython/%' or s1.url like '%test_suite_executor-TAF/%' or s1.url like '%test_suite_executor/%') and s1.name not like 'centos-rqg%'\
                 and (s1.failCount - s2.failCount) > 0 order by s1.name".format(GREENBOARD_DB_BUCKETNAME,
