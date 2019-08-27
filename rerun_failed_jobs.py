@@ -23,10 +23,8 @@ from couchbase.cluster import PasswordAuthenticator
 from couchbase.exceptions import HTTPError
 import requests
 import json
-import copy
 from threading import Thread
 import threading
-from requests.models import Response
 from typing import List, Any
 import logging
 
@@ -197,9 +195,17 @@ class RerunFailedJobs:
         self._lock_queue = threading.Lock()
 
     def find_jobs_to_rerun(self):
+        """
+        1) Query couchbase to get jobs that have result=FAILURE. Add them to the rerun queue
+        2) Query couchbase to get jobs that have result=Aborted or unstable and failcount=totalcount.
+            Add them to the rerun queue
+        3) Query couchbase to get jobs that have result=Unstable. Fetch the failcount for these jobs from
+            the last weekly build, and compare with the current ones. If there are
+            more failures this week, add them to the rerun queue
+        :return: jobs_to_rerun
+        """
         jobs_to_rerun = []
         all_results = []
-        # Query couchbase to get jobs that have result=FAILURE. Add them to the rerun queue
         query = "select `build`, name,component,failCount,totalCount,build_id,url||tostring(build_id) as full_url, \
                 'job failed' as reason from {0} where `build`='{1}'\
                 and lower(os)='centos' and result='FAILURE' and ( url like '%test_suite_executor-jython/%' or url like \
@@ -210,7 +216,6 @@ class RerunFailedJobs:
         results = self.green_board_bucket.run_query(query)
         all_results.extend(results)
 
-        # Query couchbase to get jobs that have result=Aborted or unstable and failcount=totalcount. Add them to the rerun queue
         query = "select `build`,name,component,failCount,totalCount,build_id,url||tostring(build_id) as full_url, \
                 '0 tests passed' as reason from {0} where `build`='{1}'\
                 and lower(os)='centos' and result in ['UNSTABLE','ABORTED'] and failCount=totalCount\
@@ -220,8 +225,6 @@ class RerunFailedJobs:
         results = self.green_board_bucket.run_query(query)
         all_results.extend(results)
 
-        # Query couchbase to get jobs that have result=Unstable. Fetch the failcount for these jobs from the last weekly build, and compare with the current ones. If there are
-        #    more failures this week, add them to the rerun queue
         query = "select s1.`build`,s1.name, s1.component, s1.failCount, s1.totalCount, s1.build_id, s1.url || tostring(s1.build_id) \
                 as full_url, 'more failures than {2}' as reason from {0} s1 left outer join {0} s2 on s1.name = s2.name\
                 and s2. `build` = '{2}' \
@@ -242,23 +245,25 @@ class RerunFailedJobs:
         return jobs_to_rerun
 
     def to_be_filtered(self, job):
-        # Remove jobs from the list if :
+        """
+        Remove jobs from the list if :
+        1) Same job (unique build_id, job name) is already queued up
+        2) Same job (unique build_id, job name) was already re-run (might be still running)
+        3) Same job (job name) has been re-run MAX_RERUN times.
+        """
 
         component, subcomponent = self.process_job_name(job)
 
-        # 1) Same job (unique build_id, job name) is already queued up
         if len([i for i in self.rerun_jobs_queue if
                 (i['component'] == component and i['subcomponent'] == subcomponent)]) != 0:
             return True
 
-        # 2) Same job (unique build_id, job name) was already re-run (might be still running)
         query = "select raw count(*) from {0} where `build`='{1}' and build_id={2} and name='{3}'".format(
             RERUN_JOBS_HISTORY_BUCKETNAME, current_build_num, job['build_id'], job['name'])
         count = int(self.green_board_history_bucket.run_query(query)[0])
         if count > 0:
             return True
 
-        # 3) Same job (job name) has been re-run MAX_RERUN times.
         query = "select raw count(*) from {0} where `build`='{1}' and name='{2}'".format(
             RERUN_JOBS_HISTORY_BUCKETNAME, current_build_num, job['name'])
         count = int(self.green_board_history_bucket.run_query(query)[0])
@@ -352,15 +357,15 @@ class RerunFailedJobs:
         return rerun_job_matrix
 
     def trigger_jobs(self):
-        # 1. Get the number of available machines in the regression queue
-        # 2. If available number > 10, then start with one component in the queue.
-        # 3. Call test_suite_dispatcher job for that component.
-        # 4. Wait for (no. of jobs to be rerun * 40s) + 1m
-        # Repeat #1-4
+        """
+        1. Get the number of available machines in the regression queue
+        2. If available number > 10, then start with one component in the queue and save job history.
+        3. Call test_suite_dispatcher job for that component.
+        4. Wait for (no. of jobs to be rerun * 40s) + 1m
+        Repeat #1-4
 
-        # wget "http://qa.sc.couchbase.com/job/test_suite_dispatcher/buildWithParameters?token=extended_sanity&OS=centos&version_number=$version_number&suite=12hour&component=subdoc,xdcr,rbac,query,nserv,2i,eventing,backup_recovery,sanity,ephemeral,epeng&url=$url&serverPoolId=regression&branch=$branch"
-
-        # Segregate subcomponents by component in the queue
+        wget "http://qa.sc.couchbase.com/job/test_suite_dispatcher/buildWithParameters?token=extended_sanity&OS=centos&version_number=$version_number&suite=12hour&component=subdoc,xdcr,rbac,query,nserv,2i,eventing,backup_recovery,sanity,ephemeral,epeng&url=$url&serverPoolId=regression&branch=$branch"
+        """
         logger.info("current job queue")
         self.print_current_queue()
         if self.rerun_jobs_queue:
@@ -383,12 +388,10 @@ class RerunFailedJobs:
                         logger.error("Error in triggering job")
                         logger.error(str(response))
                     else:
-                        # Save history for these jobs
                         for job in self.rerun_jobs_queue:
                             if job["component"] == comp:
                                 self.save_rerun_job_history(job)
 
-                        # Remove component from run queue
                         with self._lock_queue:
                             self.rerun_jobs_queue[:] = [job for job in self.rerun_jobs_queue if job.get('component') != comp]
                         sleep_time = (comp_rerun_details["count"] * 40) + 60
@@ -416,8 +419,10 @@ class RerunFailedJobs:
 
 if __name__ == '__main__':
 
-    # Spawn 2 never ending threads - 1 to populate the re-run queue, other to dispatch jobs
-    # whenever there are free machines
+    """
+    Spawn 2 never ending threads - 1 to populate the re-run queue, other to dispatch jobs
+    whenever there are free machines
+    """
 
     rerun_inst = RerunFailedJobs()
 
