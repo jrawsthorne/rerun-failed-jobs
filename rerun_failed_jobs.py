@@ -48,6 +48,7 @@ MAX_AVAILABLE_VMS_TO_RERUN = 10
 current_build_num = sys.argv[1]
 prev_stable_build_num = sys.argv[2]
 run_infinite = sys.argv[3]
+branch = sys.argv[4]
 LOCKMODE_WAIT = 100
 logger = logging.getLogger("rerun_failed_jobs")
 logger.setLevel(logging.DEBUG)
@@ -401,7 +402,7 @@ class RerunFailedJobs:
                     url = "http://qa.sc.couchbase.com/job/test_suite_dispatcher/buildWithParameters?" \
                           "token={0}&OS={1}&version_number={2}&suite={3}&component={4}&subcomponent={5}&serverPoolId={6}&branch={7}&addPoolId={8}". \
                         format("extended_sanity", "centos", current_build_num, "12hr_weekly", comp, comp_rerun_details["subcomponent"], comp_rerun_details["poolId"],
-                               "master", comp_rerun_details["addPoolId"])
+                               branch, comp_rerun_details["addPoolId"])
                     logger.info("Triggering job with URL " + str(url))
                     response = requests.get(url, verify=True)
                     if not response.ok:
