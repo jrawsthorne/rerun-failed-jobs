@@ -452,5 +452,5 @@ if __name__ == '__main__':
 
     time.sleep(10)
 
-    #trigger_jobs_thread = Thread(target=rerun_inst.trigger_jobs_constantly)
-    #trigger_jobs_thread.start()
+    trigger_jobs_thread = Thread(target=rerun_inst.trigger_jobs_constantly)
+    trigger_jobs_thread.start()
