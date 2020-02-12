@@ -400,7 +400,7 @@ class RerunFailedJobs:
                 if available_vms >= MAX_AVAILABLE_VMS_TO_RERUN:
 
                     url = "http://qa.sc.couchbase.com/job/py3test_suite_dispatcher/buildWithParameters?" \
-                          "token={0}&OS={1}&version_number={2}&suite={3}&component={4}&subcomponent={5}&serverPoolId={6}&branch={7}&addPoolId={8}". \
+                          "token={0}&OS={1}&version_number={2}&suite={3}&component={4}&subcomponent={5}&serverPoolId={6}&branch={7}&addPoolId={8}&python3=true". \
                         format("extended_sanity", "centos", current_build_num, "12hr_weekly", comp, comp_rerun_details["subcomponent"], comp_rerun_details["poolId"],
                                branch, comp_rerun_details["addPoolId"])
                     logger.info("Triggering job with URL " + str(url))
