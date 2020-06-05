@@ -359,7 +359,8 @@ class RerunFailedJobs:
         rerun_job_matrix = {}
         for job in self.rerun_jobs_queue:
             comp = job["component"]
-            if comp == "-os":
+            not_comp_list = ["-sanity", "-os", "onroot-os"]
+            if any(x == comp for x in not_comp_list):
                 continue
             if comp in rerun_job_matrix.keys():
                 comp_details = rerun_job_matrix[comp]
