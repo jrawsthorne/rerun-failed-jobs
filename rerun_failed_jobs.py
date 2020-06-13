@@ -173,10 +173,13 @@ class GreenBoardHistoryBucket(GreenBoardCluster):
 class ServerPoolCluster(GenericOps):
 
     def __init__(self):
-        pass
+        self.serverpool_cluster = Cluster('couchbase://%s:%s' % (SERVER_POOL_DB_HOST, "8091"))
+        self.serverpool_authenticator = PasswordAuthenticator(SERVER_POOL_DB_USERNAME, SERVER_POOL_DB_PASSWORD)
+        self.serverpool_cluster.authenticate(self.serverpool_authenticator)
 
     def get_server_pool_db(self):
-        self.bucket = Bucket('couchbase://' + SERVER_POOL_DB_HOST + '/QE-Test-Suites?operation_timeout=60', lockmode=LOCKMODE_WAIT)
+        self.bucket = self.serverpool_cluster.open_bucket(SERVER_POOL_DB_BUCKETNAME, lockmode=LOCKMODE_WAIT)
+        #self.bucket = Bucket('couchbase://' + SERVER_POOL_DB_HOST + '/QE-Test-Suites?operation_timeout=60', lockmode=LOCKMODE_WAIT)
         return self.bucket
 
     def run_query(self, query):
