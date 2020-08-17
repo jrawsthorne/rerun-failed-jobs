@@ -308,8 +308,7 @@ class RerunFailedJobs:
         if tokens[0] in ["backup", "cli"]:
             if (tokens[0] == "backup" and tokens[1] == "recovery") or (
                     tokens[0] == "cli" and tokens[1] == "imex") or (
-                    tokens[0] == "cli" and tokens[1] == "tools") or (
-                    tokens[0] == "os" and tokens[1] == "certify") :
+                    tokens[0] == "cli" and tokens[1] == "tools")  :
                 component = tokens[0] + "_" + tokens[1]
                 subcomponent = "_".join(tokens[2:])
             else:
@@ -366,7 +365,7 @@ class RerunFailedJobs:
         rerun_job_matrix = {}
         for job in self.rerun_jobs_queue:
             comp = job["component"]
-            not_comp_list = ["-sanity", "-os", "onroot-os", "os_certify"]
+            not_comp_list = ["-sanity", "-os", "onroot-os", "os"]
             if any(x == comp for x in not_comp_list):
                 continue
             if comp in rerun_job_matrix.keys():
