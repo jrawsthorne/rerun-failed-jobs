@@ -94,7 +94,8 @@ components = [{"name": "2i", "poolId": "regression", "addPoolId": "None"},
               {"name": "rza", "poolId": "regression", "addPoolId": "None"},
              {"name": "collections", "poolId": "regression", "addPoolId": "None"},
               {"name": "plasma", "poolId": "plasma", "addPoolId": "None"},
-             {"name": "magma", "poolId": "magmareg", "addPoolId": "None"}]
+             {"name": "magma", "poolId": "magmareg", "addPoolId": "None"},
+              {"name": "couchstore", "poolId": "magmareg", "addPoolId": "None"}]
 
 
 class GenericOps(object):
