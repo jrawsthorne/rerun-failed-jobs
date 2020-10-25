@@ -68,7 +68,7 @@ logger.addHandler(fh)
 components = [{"name": "2i", "poolId": "regression", "addPoolId": "None"},
               {"name": "analytics", "poolId": "regression", "addPoolId": "None"},
               {"name": "backup_recovery", "poolId": "regression", "addPoolId": "None"},
-              {"name": "ce", "poolId": "magmareg", "addPoolId": "None"}
+              {"name": "ce", "poolId": "magmareg", "addPoolId": "None"},
              {"name": "cli", "poolId": "regression", "addPoolId": "None"},
              {"name": "cli_imex", "poolId": "regression", "addPoolId": "None"},
              {"name": "durability", "poolId": "regression", "addPoolId": "None"},
