@@ -27,6 +27,7 @@ from threading import Thread
 import threading
 from typing import List, Any
 import logging
+from optparse import OptionParser
 
 MAX_RETRIES = 1
 COOLDOWN = 3
@@ -46,11 +47,21 @@ SERVER_POOL_DB_PASSWORD = "esabhcuoc"
 SERVER_POOL_DB_BUCKETNAME = "QE-server-pool"
 MAX_AVAILABLE_VMS_TO_RERUN = 10
 
-current_build_num = sys.argv[1]
-prev_stable_build_num = sys.argv[2]
-run_infinite = sys.argv[3]
-branch = sys.argv[4]
-rerun_retries = sys.argv[5]
+parser = OptionParser()
+parser.add_option("--components", dest="components", help="Only rerun failed jobs for specified components")
+parser.add_option("--only_new_failures", dest="only_new_failures", help="Only rerun failed jobs where there are more failures than last time", action="store_true")
+parser.add_option("--wait_for_main_run", dest="wait_for_main_run", help="Wait for main run to get close to finishing before dispatching", action="store_true")
+parser.add_option("--server_threshold", dest="server_threshold", help="Percent of pool servers that should be available before the main run is considered to be finishing", default=50, type="int")
+options, args = parser.parse_args()
+
+if options.components:
+    options.components = options.components.split(",")
+
+current_build_num = args[0]
+prev_stable_build_num = args[1]
+run_infinite = args[2]
+branch = args[3]
+rerun_retries = args[4]
 LOCKMODE_WAIT = 100
 logger = logging.getLogger("rerun_failed_jobs")
 logger.setLevel(logging.DEBUG)
@@ -286,6 +297,19 @@ class RerunFailedJobs:
 
         component, subcomponent = self.process_job_name(job)
 
+        # component not included
+        if options.components and component not in options.components:
+            return True
+
+        # job was run in the previous build and failCount is the same
+        if options.only_new_failures:
+            query = "select failCount from {} where `build` = '{}' and name = '{}'".format(GREENBOARD_DB_BUCKETNAME, prev_stable_build_num, job['name'])
+            previous_job = self.green_board_bucket.run_query(query)
+            # if no previous job then this is either a new job or 
+            # that job wasn't run last time so don't filter
+            if len(previous_job) == 1 and int(previous_job[0]['failCount']) == int(job['failCount']):
+                return True
+
         if len([i for i in self.rerun_jobs_queue if
                 (i['component'] == component and i['subcomponent'] == subcomponent)]) != 0:
             return True
@@ -411,7 +435,8 @@ class RerunFailedJobs:
                 logger.info("processing : {0} : {1}".format(comp, comp_rerun_details))
                 pool_id = comp_rerun_details["poolId"]
                 available_vms = self.get_available_serverpool_machines(pool_id)
-                if available_vms >= MAX_AVAILABLE_VMS_TO_RERUN:
+                # if wait_for_main_run is True then main run is already finishing once trigger_jobs has been called so dispatch immediately
+                if options.wait_for_main_run or available_vms >= MAX_AVAILABLE_VMS_TO_RERUN:
 
                     url = "http://qa.sc.couchbase.com/job/test_suite_dispatcher/buildWithParameters?" \
                           "token={0}&OS={1}&version_number={2}&suite={3}&component={4}&subcomponent={5}&serverPoolId={6}&branch={7}&addPoolId={8}&retries={9}&fresh_run=false". \
@@ -451,6 +476,37 @@ class RerunFailedJobs:
 
         logger.info("stopping monitoring")
 
+    def wait_for_main_run(self):
+        query = "select count(*) as count from `{0}` where state = '{1}' and (poolId = '{2}' or '{2}' in poolId)"
+        server_pools_available = False
+        while not server_pools_available:
+            server_pools_available = True
+            try:
+                # if regression, reg12hrreg, magmareg and os_certification are > threshold percent available then main run finishing
+                for pool in ["magmareg", "regression", "12hrreg", "os_certification"]:
+                    available = list(self.server_pool_cluster.run_query(query.format(SERVER_POOL_DB_BUCKETNAME,
+                        "available", pool)))[0]['count']
+
+                    booked = list(self.server_pool_cluster.run_query(query.format(SERVER_POOL_DB_BUCKETNAME,
+                        "booked", pool)))[0]['count']
+
+                    total = available + booked
+                    capacity = (available/total) * 100
+
+                    logger.info(
+                        "{} pool at {:.2f}% capacity".format(pool, capacity))
+
+                    if capacity < options.server_threshold:
+                        server_pools_available = False
+            except Exception as e:
+                logger.warning("couldn't fetch server availabiliy: {}".format(str(e)))
+                # we could't check so try again
+                server_pools_available = False
+
+            if server_pools_available:
+                break
+
+            time.sleep(5 * 60)
 
 if __name__ == '__main__':
 
@@ -461,10 +517,16 @@ if __name__ == '__main__':
 
     rerun_inst = RerunFailedJobs()
 
-    get_rerun_job_thread = Thread(target=rerun_inst.find_and_manage_rerun_jobs)
-    get_rerun_job_thread.start()
+    if options.wait_for_main_run:
+        rerun_inst.wait_for_main_run()
+        jobs_to_rerun = rerun_inst.find_jobs_to_rerun()
+        rerun_inst.manage_rerun_jobs_queue(jobs_to_rerun)
+        time.sleep(10)
+        rerun_inst.trigger_jobs()
+    else:
+        get_rerun_job_thread = Thread(target=rerun_inst.find_and_manage_rerun_jobs)
+        get_rerun_job_thread.start()
 
-    time.sleep(10)
-
-    trigger_jobs_thread = Thread(target=rerun_inst.trigger_jobs_constantly)
-    trigger_jobs_thread.start()
+        time.sleep(10)
+        trigger_jobs_thread = Thread(target=rerun_inst.trigger_jobs_constantly)
+        trigger_jobs_thread.start()

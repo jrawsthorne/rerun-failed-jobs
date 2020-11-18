@@ -1,0 +1,11 @@
+attrs==20.3.0
+certifi==2020.11.8
+chardet==3.0.4
+couchbase==2.5.12
+idna==2.10
+mypy-extensions==0.4.3
+pyrsistent==0.17.3
+requests==2.25.0
+six==1.15.0
+urllib3==1.26.1
+wrapt==1.12.1
